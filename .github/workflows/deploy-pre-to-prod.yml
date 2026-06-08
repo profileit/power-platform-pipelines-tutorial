@@ -2,17 +2,22 @@ name: Deploy PRE → PROD
 
 on:
   workflow_dispatch:
+    inputs:
+      source_run_id:
+        description: "Run ID del despliegue DEV→PRE (número de la URL: .../actions/runs/XXXXXX)"
+        required: true
 
 env:
   SOLUTION_NAME: ConversationalAgent
 
 jobs:
   deploy:
-    name: Export from PRE and import to PROD
+    name: Download DEV→PRE artifact and import to PROD
     runs-on: ubuntu-latest
     environment: prod
     permissions:
       contents: write
+      actions: read
 
     steps:
       - uses: actions/checkout@v4
@@ -20,41 +25,21 @@ jobs:
       - name: Install PAC CLI
         uses: microsoft/powerplatform-actions/actions-install@v1
 
-      - name: Add PAC CLI to PATH
+      - name: Get source run number
+        id: source_run
         run: |
-          dotnet tool install --global Microsoft.PowerApps.CLI.Tool
-          echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
+          RUN_NUMBER=$(gh api repos/${{ github.repository }}/actions/runs/${{ inputs.source_run_id }} --jq '.run_number')
+          echo "run_number=$RUN_NUMBER" >> $GITHUB_OUTPUT
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Validate connection to PRE
-        uses: microsoft/powerplatform-actions/who-am-i@v1
+      - name: Download solution artifact
+        uses: actions/download-artifact@v4
         with:
-          environment-url: ${{ secrets.PRE_ENVIRONMENT_URL }}
-          app-id: ${{ secrets.CLIENT_ID }}
-          client-secret: ${{ secrets.CLIENT_SECRET }}
-          tenant-id: ${{ secrets.TENANT_ID }}
-
-      - name: Set solution version
-        run: |
-          pac auth create --url "${{ secrets.PRE_ENVIRONMENT_URL }}" --applicationId "${{ secrets.CLIENT_ID }}" --clientSecret "${{ secrets.CLIENT_SECRET }}" --tenant "${{ secrets.TENANT_ID }}"
-          pac solution online-version --solution-name "${{ env.SOLUTION_NAME }}" --solution-version "1.0.1.${{ github.run_number }}"
-
-      - name: Export solution from PRE
-        uses: microsoft/powerplatform-actions/export-solution@v1
-        with:
-          environment-url: ${{ secrets.PRE_ENVIRONMENT_URL }}
-          app-id: ${{ secrets.CLIENT_ID }}
-          client-secret: ${{ secrets.CLIENT_SECRET }}
-          tenant-id: ${{ secrets.TENANT_ID }}
-          solution-name: ${{ env.SOLUTION_NAME }}
-          solution-output-file: out/${{ env.SOLUTION_NAME }}.zip
-          managed: true
-
-      - name: Upload solution artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ env.SOLUTION_NAME }}-${{ github.run_number }}
-          path: out/*.zip
-          retention-days: 30
+          name: ${{ env.SOLUTION_NAME }}-${{ steps.source_run.outputs.run_number }}
+          run-id: ${{ inputs.source_run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: out/
 
       - name: Validate connection to PROD
         uses: microsoft/powerplatform-actions/who-am-i@v1
@@ -79,5 +64,5 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag "deploy/prod/1.0.1.${{ github.run_number }}"
-          git push origin "deploy/prod/1.0.1.${{ github.run_number }}"
+          git tag "deploy/prod/1.0.1.${{ steps.source_run.outputs.run_number }}"
+          git push origin "deploy/prod/1.0.1.${{ steps.source_run.outputs.run_number }}"
