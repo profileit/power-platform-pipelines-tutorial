@@ -32,7 +32,9 @@ jobs:
           tenant-id: ${{ secrets.TENANT_ID }}
 
       - name: Set solution version
-        run: pac solution online-version --solution-name "${{ env.SOLUTION_NAME }}" --solution-version "1.0.1.${{ github.run_number }}"
+        run: |
+          pac auth create --url "${{ secrets.PRE_ENVIRONMENT_URL }}" --applicationId "${{ secrets.CLIENT_ID }}" --clientSecret "${{ secrets.CLIENT_SECRET }}" --tenant "${{ secrets.TENANT_ID }}"
+          pac solution online-version --solution-name "${{ env.SOLUTION_NAME }}" --solution-version "1.0.1.${{ github.run_number }}"
 
       - name: Export solution from PRE
         uses: microsoft/powerplatform-actions/export-solution@v1
