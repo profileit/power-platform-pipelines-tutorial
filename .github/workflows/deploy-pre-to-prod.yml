@@ -31,7 +31,7 @@ jobs:
           client-secret: ${{ secrets.CLIENT_SECRET }}
           tenant-id: ${{ secrets.TENANT_ID }}
           solution-name: ${{ env.SOLUTION_NAME }}
-          solution-version: "1.0.0.${{ github.run_number }}"
+          solution-version: "1.0.1.${{ github.run_number }}"
 
       - name: Export solution from PRE
         uses: microsoft/powerplatform-actions/export-solution@v1
