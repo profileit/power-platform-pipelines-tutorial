@@ -3,8 +3,8 @@ name: Deploy PRE → PROD
 on:
   workflow_dispatch:
     inputs:
-      source_run_id:
-        description: "Run ID del despliegue DEV→PRE (número de la URL: .../actions/runs/XXXXXX)"
+      pre_tag:
+        description: "Tag del despliegue a PRE (ej: deploy/pre/1.0.1.5)"
         required: true
 
 env:
@@ -12,7 +12,7 @@ env:
 
 jobs:
   deploy:
-    name: Download DEV→PRE artifact and import to PROD
+    name: Promote PRE tag to PROD
     runs-on: ubuntu-latest
     environment: prod
     permissions:
@@ -25,19 +25,30 @@ jobs:
       - name: Install PAC CLI
         uses: microsoft/powerplatform-actions/actions-install@v1
 
-      - name: Get source run number
-        id: source_run
+      - name: Resolve run ID from tag
+        id: resolve
         run: |
-          RUN_NUMBER=$(gh api repos/${{ github.repository }}/actions/runs/${{ inputs.source_run_id }} --jq '.run_number')
+          TAG="${{ inputs.pre_tag }}"
+          RUN_NUMBER="${TAG##*.}"
           echo "run_number=$RUN_NUMBER" >> $GITHUB_OUTPUT
+
+          RUN_ID=$(gh api "repos/${{ github.repository }}/actions/workflows/deploy-dev-to-pre.yml/runs?per_page=100" \
+            --jq ".workflow_runs[] | select(.run_number == ($RUN_NUMBER | tonumber)) | .id" | head -1)
+
+          if [ -z "$RUN_ID" ]; then
+            echo "No se encontró ningún run con número $RUN_NUMBER en el workflow DEV→PRE"
+            exit 1
+          fi
+
+          echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Download solution artifact
         uses: actions/download-artifact@v4
         with:
-          name: ${{ env.SOLUTION_NAME }}-${{ steps.source_run.outputs.run_number }}
-          run-id: ${{ inputs.source_run_id }}
+          name: ${{ env.SOLUTION_NAME }}-${{ steps.resolve.outputs.run_number }}
+          run-id: ${{ steps.resolve.outputs.run_id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           path: out/
 
@@ -64,5 +75,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag "deploy/prod/1.0.1.${{ steps.source_run.outputs.run_number }}"
-          git push origin "deploy/prod/1.0.1.${{ steps.source_run.outputs.run_number }}"
+          VERSION="${{ inputs.pre_tag }}"
+          VERSION="${VERSION/deploy\/pre\//}"
+          git tag "deploy/prod/$VERSION"
+          git push origin "deploy/prod/$VERSION"
