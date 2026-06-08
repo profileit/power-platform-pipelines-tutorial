@@ -16,6 +16,9 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install PAC CLI
+        uses: microsoft/powerplatform-actions/actions-install@v1
+
+      - name: Add PAC CLI to PATH
         run: |
           dotnet tool install --global Microsoft.PowerApps.CLI.Tool
           echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
