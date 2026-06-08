@@ -15,6 +15,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install PAC CLI
+        uses: microsoft/powerplatform-actions/actions-install@v1
+
       - name: Validate connection to DEV
         uses: microsoft/powerplatform-actions/who-am-i@v1
         with:
