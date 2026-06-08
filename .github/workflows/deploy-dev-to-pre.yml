@@ -11,6 +11,8 @@ jobs:
     name: Export from DEV and import to PRE
     runs-on: ubuntu-latest
     environment: pre
+    permissions:
+      contents: write
 
     steps:
       - uses: actions/checkout@v4
@@ -72,3 +74,10 @@ jobs:
           solution-file: out/${{ env.SOLUTION_NAME }}.zip
           force-overwrite: true
           publish-changes: true
+
+      - name: Tag deployment
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "deploy/pre/1.0.1.${{ github.run_number }}"
+          git push origin "deploy/pre/1.0.1.${{ github.run_number }}"
